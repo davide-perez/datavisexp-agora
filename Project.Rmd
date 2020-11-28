@@ -1,0 +1,264 @@
+---
+title: "Programming and Visualization for Data Science - Project"
+output: html_notebook
+author: "Davide Perez Cuevas"
+---
+
+```{r setup}
+library(tidyverse)
+library(countrycode)
+library(ggplot2)
+```
+
+## Project task
+The aim of
+this project is to explore some dataset (possibly a combination of more than one), using the visualization techniques we
+study in this course.
+
+For this project you shall carry out at least the following.
+
+* Select one or more data sources. You should find one or more datasets that are interesting for you. You are free to pick any dataset you prefer, on OLE there is a list of pointers to useful data repositories.
+
+* Describe what the datasets are about and what you expect to find during the exploration.
+
+* Clean and preprocess the dataset, recording the reasoning behind your preprocessing choices in the report.
+
+* Visualize different aspects of the dataset using the most appropriate visualizations we study in the course.
+
+* State your findings.
+
+
+## Project description
+"Agora" was one of the largest darknet markets, and was active from 2013 to 2015. It operated primarily as a black market, allowing transactions of illegal items and services such as drugs, weapons, stolen/fake documents, cyber arms...
+The dataset under analysis is a Kaggle dataset (find it [here](https://www.kaggle.com/philipjames11/dark-net-marketplace-drug-data-agora-20142015)) created from a raw html rip of the Agora website (years 2014/2015), which was disclosed by an unknown Reddit user and which lead, probably, to the Agora shutdown a few months after. The Kaggle dataset curator states that he obtained the data from a 3rd party source, but acknowledges its origin from the [Darknet Web Archives](https://www.gwern.net/DNM-archives), a huge collection of scraped/mirrored data from the Dark Net Markets between years 2013-2015 and used as a reference from many papers related to studies on darknet markets. Moreover, he advises that some operations already have been made to the dataset: duplicated listings have been merged into a single listing, and the price has been averaged across merged duplicates.
+
+The exploration of this dataset could lead to some interesting findings. Examples are potential correlations between different illegal items and from their shipping origin/destination, price estimate in certain regions in the world and identifying high risk regions or vendors.
+**DISCLAIMER: darkweb is a treacherous dimension, and most of transaction on darknet markets involve illegal items. The following analysis does not intend neither to encourage illegal activities in any way, nor to promote reckless darkweb surfing. Rather, it aims to perform an analysis to try to identify the past behaviours of one of the biggest of such market platforms.**
+
+## Dataset description
+*DISCLAIMER n.2: in the follwing, we will use the term dataset as a broad term to refer both the data collection in analysis and the parsed data in R in form of a dataframe or tibble object.*
+
+As first step, we read the dataset from the corresponding .csv file.
+```{r message = FALSE}
+agora_raw <- read_csv("data/Agora.csv")
+```
+Then we get a first glimpse (in a very real sense) of the information in it:
+```{r}
+glimpse(agora_raw)
+```
+We see that the Agora dataset contains more than 100000 entries about different products offered on the omonymous market and made up of 9 features.
+All columns have been parsed with data type `char`, even the one expressing numerical values such as `Price` or `Rating`.
+Here we give a detailed description of the features (based on the description of the Kaggle dataset):
+
+* `Vendor`: username of the seller
+
+* `Category`: Agora's marketplace category where the item belongs
+
+* `Item`: item or service name
+
+* `Description`: a description of the listing
+
+* `Price`: cost of the item in bitcoins (BTC). The price has been averaged across any duplicated listings, and duplicates have been discarded.
+
+* `Origin`: country name or code of the country the item is listed to have shipped from
+
+* `Destination`: country name or code wheee the item is listed to be shipped to
+
+* `Rating`: the rating given to the seller on the Agora marketplace, on a 0-5 scale
+
+* `Remarks`: contains notes about the listing
+
+## Analysis overview
+Web scrapes may be difficult to analyze: they often are large, redundant and highly error-prone. This is particularly true for scrapes coming from black webmarkets: being located in the darkweb and treating illegal matters, they are highly unstable. Products and vendors may be banned and disappear from day to day, metadata such as category descriptions or shipping information can be wrong or intentionally misleading, prices fluctuation is high due to cryptocurrencies use. Data is not well organized because often the website design is kept minimal and input is not sanitized or constrained due to anonimity concerns. Thus, such data will never be comprehensive and give an overall, long-term view on the market situation, but it rather represents a (more or less complete) snapshot of the market in a given moment. Our dataset is not an exception, and even by giving a quick `glimpse` we understand it is quite dirty.
+
+Despite the intrinsic incompleteness, a complete enough dataset such as this one can give very helpful insights, but it requires quite a lot of cleaning and processing to be as reliable as possible.
+Given this, the analysis we will carry on will not follow a *waterfall* flow, in the sense that it will not be a linear process chaining cleaning, preprocessing and exploration tasks in a linear way. Rather, it will be an *iterative process* in which the analysis phases are intertwined, depending on the aspect we are analyzing.
+The following example will help to better understand this approach. Suppose we want to do a preliminary dataset cleaning involving all features, prior beginning any exploratory task. Suppose we begin by inspecting the `Destination` column.
+```{r}
+agora_raw %>% 
+  distinct(Destination)
+```
+We immediately notice some big problems. No coherent naming system was used to represent countries. Sometimes the feature is a country code, sometimes it is an alias, sometimes the full country name, sometimes it is a list of countries or simply something that does not represent a country at all.
+The data is too scrambled to fix all entries manually or via string manipulation, but wiping out all the listings with an invalid information would cost us a big chunk of our data and the loss of precious information. Even worse, the `Origin` feature suffers from the same problems, and this will further reduce the number of valid listings.
+On the other hand, not all kind of insights we are going to make involve this feature: for example, if we want to know the top vendors of the market we are not interested in knowing shipping-related information, and if we purged listings because of invalid information for such features our analysis will inevitably become corrupted.
+Some things have to be handled as soon as possible, such as misparsed rows that could taint any type of exploration, but we will postpone the in-depth processing of single features until they are required for an analysis.
+
+## Handling missing and invalid values
+We inspect the missing values per column:
+
+```{r}
+#TODO: substitute deprecated funs with a lambda or a function list
+agora_raw %>%
+  select(everything()) %>%
+  summarise_all(funs(sum(is.na(.))))
+```
+
+We see that for almost all features there is a number of entries with missing values.
+We compute the percentage of null values to get an idea of the portion of data affected:
+
+```{r}
+#TODO: substitute deprecated funs with a lambda or a function list
+ agora_raw %>% 
+   summarise_each(funs( 100 * round(mean( is.na(.) ), 6 )))
+ #agora_raw %>% 
+   #summarize(
+     #across(agora_raw, ( 100 * round(mean( is.na(.) ), 6 )))
+     #)
+```
+
+We have now a clearer idea: for `Remarks` column, almost all data is missing, while for `Destination` column a solid 44,81% of the listings have a missing value.
+For what concerns `Destination`, the Kaggle dataset description states that an empty value probably represents an item being shipped worldwide: by means of a quick research on the website the dataset was originally published on and on the archives it references, like [this one](https://archive.org/details/dnmarchives), seems that a missing `Origin` or `Destination` means that the item is shipped from or ships to worldwide, indeed. So we can assume that missing values in such columns have such meaning.
+However, the `Remarks` feature is not so relevant, both because of missing data and because the information it holds is not useful to the purpose of our analysis. So we can safely drop it.
+```{r}
+agora <- 
+  select(agora_raw, -c('Remarks'))
+```
+
+The `Rating` feature expresses the rating given to the seller from other users on the marketplace, which presumably comes as the mean of the ratings given by single users. Such total rating is not calculated for a vendor until a fixed minum number number of ratings has been received. The Kaggle dataset description explains that a missing value, or a bogus non-numerical one, means that the dealer has not received enough ratings yet. There is no reason to exlude such vendors, so we will not drop listings having a null listing value.
+
+The `Item` feature is an information that is required for a valid listing in any marketplace: a missing value could indicated a misparsed entry. Same reasoning goes for the `Price` feature.
+```{r}
+agora %>%
+  filter(is.na(`Item`) | is.na(`Price`))
+```
+Indeed, these rows are either scrambled or incomplete. We proceed removing all of them.
+```{r}
+agora <- 
+  filter(agora, !is.na(Item) & !is.na(Price))
+```
+*Item Description* contains text giving additional info about the related product, so it is not object of analysis and can be fully dropped.
+```{r}
+agora <- 
+  select(agora_raw, -c('Item Description'))
+```
+We managed to do a preliminary shrinking of the dataset by getting rid of redundant information.
+
+## Exploration
+
+### Agora's Top 20
+We want to know who are the most active vendors in terms of listings.
+
+```{r}
+agora %>% 
+  distinct(Vendor) %>% 
+  count()
+```
+On the marketplace there are almost 3200 vendors. We focus our attention on the first 20 ones.
+
+```{r message=false}
+top_20_vendors <- 
+  agora %>%
+  group_by(Vendor) %>%
+  summarise(N_items = n()) %>%
+  arrange(desc(N_items)) %>%
+  slice_head(n = 20)
+
+top_20_vendors %>% 
+    ggplot(aes(x = N_items, y = reorder(Vendor, N_items))) +
+    geom_col() +
+    labs(title = 'Top 20 vendors per no. of items', x = 'No. of items on sale', y = 'Vendor')
+```
+We see that the top four vendors have a similar number of items listed, while from the fifth on there is a noticeable gap. Probably the elite vendors have the largest sales volume and dominate the market, at the expenses of the other, less renowned vendors. We hypotize that **reputation is an important factor when dealing with this kind of commerce, since it is difficult to obtain a refund if something goes wrong**.
+
+
+### Categories exploration
+
+We now focus our attention on the different categories of the market.
+```{r}
+agora %>% 
+  distinct(Category) %>% 
+  count()
+```
+There are 105 different categories, which is quite a huge number for classifying items.
+```{r}
+agora %>% 
+  distinct(Category) %>%
+  arrange(Category)
+```
+We immediately notice a couple misparsed entry, where the price value is in the category instead: we proceed to selectively remove it.
+```{r}
+agora <- 
+  agora %>%
+  filter(Category != '0.12780125125 BTC') %>%
+  filter(Category != '0.1905617980645162 BTC')
+```
+Now we do a quick inspection of the number of items per category.
+```{r}
+categories <-
+  agora %>%
+  group_by(Category) %>%
+  summarise(N_items = n()) %>%
+  arrange(desc(N_items))
+categories
+```
+From this preliminary check, we can already say that **drug-related products seems to have a great weight in the market.**.
+
+```{r}
+arrange(categories, N_items)
+```
+By inspecting the less popular categories, we found some other misparsed entries which we remove from the original dataset.
+```{r}
+agora <-
+  agora %>%
+  filter(!str_detect(Category, "Body Bags")) # category does not exist anymore, already been split
+```
+
+However, there still is a problem. The feature we are inspecting is not tidy: it looks like each category is divided in one or more subcategories. For example, the category *Drugs/Cannabis/Weed* identifies a main category *Drugs* and two further subcategories *Cannabis* and *Weed*. Prior doing some visualization, we should split the `Category` feature in its category tiers. This will allow us to do a more fine-grained analysis regarding the products classification.
+Prior doing this we check how many tiers there are, in order to define which features to craft.
+```{r}
+categories <-
+  categories %>%
+  mutate(N_tiers = str_count(Category, "/") + 1) %>%
+  arrange(desc(N_tiers))
+categories
+```
+We see there are up to four category tiers. So we need to split the `Category` feature in four new features.
+```{r}
+agora <-
+  agora %>%
+  separate(Category, into = c("Tier1_Category","Tier2_Category","Tier3_Category","Tier4_Category"), sep = "/")
+```
+We now have a more granular separation of item's categories.
+```{r}
+agora %>%
+  select(Item, Tier1_Category, Tier2_Category, Tier3_Category, Tier4_Category)
+```
+We can now analyze the different categories in detail: obviously, it makes sense to analyze them depending on the tier level, since there are some missing values due to the fact that not all items have the same number of categories tiers.
+```{r}
+categories <-
+  agora %>%
+  group_by(Tier1_Category, Tier2_Category, Tier3_Category, Tier4_Category) %>%
+  summarise(N_items = n()) %>%
+  arrange(desc(N_items))
+categories
+```
+```{r}
+tier1 <-
+  categories %>%
+  group_by(Tier1_Category) %>%
+  summarise(N_items = n()) %>%
+  arrange(desc(N_items))
+
+p <-
+  ggplot(tier1, mapping = aes(y = Tier1_Category, x = N_items)) + 
+  geom_col()
+```
+```{r}
+tier2 <-
+  categories %>%
+  group_by(Tier2_Category) %>%
+  summarise(N_items = n()) %>%
+  arrange(desc(N_items))
+
+p <-
+  ggplot(tier2, mapping = aes(y = Tier2_Category, x = N_items)) + 
+  geom_col()
+```
+This confirms our previous intuition, which puts weed items as the top products.
+We proceed to perform a detailed exploration on the different category tiers.
+```{r}
+categories <-
+  agora %>%
+  select(Tier1_Category, Tier2_Category, Tier3_Category, Tier4_Category)
+categories
+```
