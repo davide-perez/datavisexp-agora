@@ -8,6 +8,8 @@ author: "Davide Perez Cuevas"
 library(tidyverse)
 library(countrycode)
 library(ggplot2)
+library(gridExtra)
+library(ggrepel)
 ```
 
 ## Project task
@@ -105,14 +107,19 @@ We compute the percentage of null values to get an idea of the portion of data a
      #across(agora_raw, ( 100 * round(mean( is.na(.) ), 6 )))
      #)
 ```
+```{r}
+#print pie chart?
+```
 
 We have now a clearer idea: for `Remarks` column, almost all data is missing, while for `Destination` column a solid 44,81% of the listings have a missing value.
 For what concerns `Destination`, the Kaggle dataset description states that an empty value probably represents an item being shipped worldwide: by means of a quick research on the website the dataset was originally published on and on the archives it references, like [this one](https://archive.org/details/dnmarchives), seems that a missing `Origin` or `Destination` means that the item is shipped from or ships to worldwide, indeed. So we can assume that missing values in such columns have such meaning.
 However, the `Remarks` feature is not so relevant, both because of missing data and because the information it holds is not useful to the purpose of our analysis. So we can safely drop it.
 ```{r}
-agora <- 
-  select(agora_raw, -c('Remarks'))
+agora <-
+  agora_raw %>%
+  select(-c('Remarks'))
 ```
+
 
 The `Rating` feature expresses the rating given to the seller from other users on the marketplace, which presumably comes as the mean of the ratings given by single users. Such total rating is not calculated for a vendor until a fixed minum number number of ratings has been received. The Kaggle dataset description explains that a missing value, or a bogus non-numerical one, means that the dealer has not received enough ratings yet. There is no reason to exlude such vendors, so we will not drop listings having a null listing value.
 
@@ -124,13 +131,17 @@ agora %>%
 Indeed, these rows are either scrambled or incomplete. We proceed removing all of them.
 ```{r}
 agora <- 
-  filter(agora, !is.na(Item) & !is.na(Price))
+  agora %>%
+  filter(!is.na(Item) & !is.na(Price))
 ```
 *Item Description* contains text giving additional info about the related product, so it is not object of analysis and can be fully dropped.
 ```{r}
 agora <- 
-  select(agora_raw, -c('Item Description'))
+  agora %>%
+  select(-c('Item Description'))
 ```
+
+
 We managed to do a preliminary shrinking of the dataset by getting rid of redundant information.
 
 ## Exploration
@@ -200,65 +211,64 @@ By inspecting the less popular categories, we found some other misparsed entries
 ```{r}
 agora <-
   agora %>%
-  filter(!str_detect(Category, "Body Bags")) # category does not exist anymore, already been split
+  filter(!str_detect(Category, "Body Bags"))
 ```
 
-However, there still is a problem. The feature we are inspecting is not tidy: it looks like each category is divided in one or more subcategories. For example, the category *Drugs/Cannabis/Weed* identifies a main category *Drugs* and two further subcategories *Cannabis* and *Weed*. Prior doing some visualization, we should split the `Category` feature in its category tiers. This will allow us to do a more fine-grained analysis regarding the products classification.
-Prior doing this we check how many tiers there are, in order to define which features to craft.
+However, there still is a problem. It looks like each category is divided in one or more subcategories (or tiers). For example, the category *Drugs/Cannabis/Weed* identifies a main category *Drugs* and two further subcategories *Cannabis* and *Weed*. We may want to do some more fine-grained exploration of the categories, for example exploring one tier at time.
+We check how many tiers there are.
 ```{r}
 categories <-
   categories %>%
-  mutate(N_tiers = str_count(Category, "/") + 1) %>%
-  arrange(desc(N_tiers))
+  mutate(Depth = str_count(Category, "/") + 1) %>%
+  arrange(desc(Depth))
 categories
 ```
-We see there are up to four category tiers. So we need to split the `Category` feature in four new features.
-```{r}
-agora <-
-  agora %>%
-  separate(Category, into = c("Tier1_Category","Tier2_Category","Tier3_Category","Tier4_Category"), sep = "/")
-```
-We now have a more granular separation of item's categories.
-```{r}
-agora %>%
-  select(Item, Tier1_Category, Tier2_Category, Tier3_Category, Tier4_Category)
-```
-We can now analyze the different categories in detail: obviously, it makes sense to analyze them depending on the tier level, since there are some missing values due to the fact that not all items have the same number of categories tiers.
+We see there are up to four category tiers.
+We will analyze the different categories in detail: obviously, it makes sense to explore them depending on the tier level in order to keep the analysis tidy.
 ```{r}
 categories <-
   agora %>%
-  group_by(Tier1_Category, Tier2_Category, Tier3_Category, Tier4_Category) %>%
-  summarise(N_items = n()) %>%
-  arrange(desc(N_items))
+  select(Category) %>%
+  mutate(Depth = str_count(Category, "/") + 1) %>%
+  separate(Category, into = c("Tier1", "Tier2", "Tier3", "Tier4"), sep = "/")
 categories
 ```
+To speed things up, we build a couple functions to extract a tidy tier-specific dataset and to plot it.
 ```{r}
-tier1 <-
-  categories %>%
-  group_by(Tier1_Category) %>%
-  summarise(N_items = n()) %>%
-  arrange(desc(N_items))
+get_tier <- function(dataset, tier_no, results_no){
+  col_name = sprintf("Tier%d", tier_no)
+  tier_data <-
+    dataset %>%
+    select(col_name) %>%
+    drop_na(col_name) %>%
+    group_by_at(col_name) %>%
+    summarise(N_items = n()) %>%
+    arrange(desc(N_items)) %>%
+    slice_head(n = results_no)
+  return(tier_data)
+}
 
-p <-
-  ggplot(tier1, mapping = aes(y = Tier1_Category, x = N_items)) + 
-  geom_col()
+plot_tier <- function(dataset, tier_no, results_no){
+  col_name = sprintf("Tier%d", tier_no)
+  p <-
+    ggplot(get_tier(dataset, tier_no, results_no), aes(x = N_items, y = reorder(!!sym(col_name), N_items))) + # col_name is a string, must be a symbol
+    geom_col() +
+    labs(title = sprintf("Top %d entries of cat. tier %d", results_no, tier_no), x = "No. of items", y = "Category")
+  return(p)
+}
 ```
-```{r}
-tier2 <-
-  categories %>%
-  group_by(Tier2_Category) %>%
-  summarise(N_items = n()) %>%
-  arrange(desc(N_items))
 
-p <-
-  ggplot(tier2, mapping = aes(y = Tier2_Category, x = N_items)) + 
-  geom_col()
-```
-This confirms our previous intuition, which puts weed items as the top products.
-We proceed to perform a detailed exploration on the different category tiers.
+We get a global overview by plotting all of the tiers in a grid. We concentrate on the top 15 entries.
 ```{r}
-categories <-
-  agora %>%
-  select(Tier1_Category, Tier2_Category, Tier3_Category, Tier4_Category)
-categories
+p1 <- plot_tier(categories, 1, 15)
+p2 <- plot_tier(categories, 2, 15) 
+p3 <- plot_tier(categories, 3, 15)
+p4 <- plot_tier(categories, 4, 15) 
+grid.arrange(p1, p2, p3, p4, ncol = 2)
 ```
+By means of these simple grid of plots we see some important characteristics of the market: the drugs dominates all the other product tyoes, and among them cannabis and weed are by far the most sold products. Moreover, we notice that there are only a few items having up to four tiers in the category feature. We may hypotize it is so either because the products are even more specific than others, or due to a wrong classification.
+```{r}
+#eliminate tier 4 by incorporating them in tier 3 category?
+```
+
+
