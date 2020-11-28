@@ -9,7 +9,6 @@ library(tidyverse)
 library(countrycode)
 library(ggplot2)
 library(gridExtra)
-library(ggrepel)
 ```
 
 ## Project task
@@ -233,9 +232,9 @@ categories <-
   separate(Category, into = c("Tier1", "Tier2", "Tier3", "Tier4"), sep = "/")
 categories
 ```
-To speed things up, we build a couple functions to extract a tidy tier-specific dataset and to plot it.
+To speed things up, we build a couple functions to extract a tidy tier-specific dataset and to plot it in various formats.
 ```{r}
-get_tier <- function(dataset, tier_no, results_no){
+get_tier_data <- function(dataset, tier_no, results_no){
   col_name = sprintf("Tier%d", tier_no)
   tier_data <-
     dataset %>%
@@ -248,27 +247,75 @@ get_tier <- function(dataset, tier_no, results_no){
   return(tier_data)
 }
 
-plot_tier <- function(dataset, tier_no, results_no){
+plot_tier_bar <- function(dataset, tier_no, results_no){
   col_name = sprintf("Tier%d", tier_no)
   p <-
-    ggplot(get_tier(dataset, tier_no, results_no), aes(x = N_items, y = reorder(!!sym(col_name), N_items))) + # col_name is a string, must be a symbol
+    ggplot(get_tier_data(dataset, tier_no, results_no), aes(x = N_items, y = reorder(!!sym(col_name), N_items))) + # col_name is a string, must be a symbol so we use r features to convert it
     geom_col() +
+    scale_fill_brewer(palette = "Dark2") +
     labs(title = sprintf("Top %d entries of cat. tier %d", results_no, tier_no), x = "No. of items", y = "Category")
   return(p)
+}
+
+plot_tier_pie <- function(dataset, tier_no, results_no){
+  col_name = sprintf("Tier%d", tier_no)
+  pie_tier <-
+    ggplot(get_tier_data(categories, tier_no, results_no), aes(x = "", y = (N_items / sum(N_items) * 100), fill = !!sym(col_name))) +
+    geom_bar(stat = "identity", width = 1, color = "white") +
+    coord_polar("y", start = 0) +
+    theme_void() + 
+    labs(title = sprintf("Market shares for top %d items", results_no, tier_no), y = "Test") +
+    geom_text(aes(label = round((N_items / sum(N_items) * 100), digits = 2)), position = position_stack(vjust = 0.5)) +
+    scale_fill_brewer(palette = "Set1")
+  return(pie_tier)
 }
 ```
 
 We get a global overview by plotting all of the tiers in a grid. We concentrate on the top 15 entries.
 ```{r}
-p1 <- plot_tier(categories, 1, 15)
-p2 <- plot_tier(categories, 2, 15) 
-p3 <- plot_tier(categories, 3, 15)
-p4 <- plot_tier(categories, 4, 15) 
+p1 <- plot_tier_bar(categories, 1, 15)
+p2 <- plot_tier_bar(categories, 2, 15) 
+p3 <- plot_tier_bar(categories, 3, 15)
+p4 <- plot_tier_bar(categories, 4, 15) 
 grid.arrange(p1, p2, p3, p4, ncol = 2)
 ```
-By means of these simple grid of plots we see some important characteristics of the market: the drugs dominates all the other product tyoes, and among them cannabis and weed are by far the most sold products. Moreover, we notice that there are only a few items having up to four tiers in the category feature. We may hypotize it is so either because the products are even more specific than others, or due to a wrong classification.
+By means of these simple grid of plots we see some important characteristics of the market: the drugs dominates all the other product types, and among them cannabis and weed are by far the most sold products. 
+
+We can have a better visualization of this by means of pie charts showing the market shares for each category tier.
 ```{r}
-#eliminate tier 4 by incorporating them in tier 3 category?
+pie1 <- plot_tier_pie(categories, 1, 5)
+pie2 <- plot_tier_pie(categories, 2, 5)
+pie3 <- plot_tier_pie(categories, 3, 5)
+pie4 <- plot_tier_pie(categories, 4, 5)
+grid.arrange(pie1, pie2, pie3, pie4, ncol = 2)
 ```
+Again, considering the first five categories, we see that the drug market has a market share of over 90%. In tier 2 and tier 3, indeed, we only find subcategories of drugs in the top five. 
+For tier 2 cannabis has the top market share, taking almost the half of the market share, followed by ecstasy and stimulants.
+For tier 3, weed is the top product and greatly surpasses the second and third one (pills and cocaine), which have a similar market share.
+
+Market share of tier 4 is not so relevant because there are very few items having this classification compared to the total number of listings:
+```{r}
+categories %>%
+  filter(!is.na(Tier4)) %>%
+  count()
+```
+We may hypotize this happened so due to a wrong classification, either by the user selling the product or by the website itself. However, for our analysis' sake, we may eliminate this less-relevant tier 4 and reassign those items to the upper-level tier. Note that we are not elimining any entry, we are *reclassifying* it.
+```{r}
+agora <-
+  agora %>%
+  mutate(Category, Category = ifelse(str_detect(Category, "Sex"),"Info/eBooks/Relationships", Category)) %>%
+  mutate(Category, Category = ifelse(str_detect(Category, "trim"),"Drugs/Cannabis/Shake", Category)) %>%
+  mutate(Category, Category = ifelse(str_detect(Category, "UFOs"),"Info/eBooks/Aliens", Category))
+```
+We reparse the `categories` dataset to update it.
+```{r}
+categories <-
+  agora %>%
+  select(Category) %>%
+  mutate(Depth = str_count(Category, "/") + 1) %>%
+  separate(Category, into = c("Tier1", "Tier2", "Tier3"), sep = "/")
+```
+
+
 
 
