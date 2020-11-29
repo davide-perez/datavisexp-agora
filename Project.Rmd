@@ -260,7 +260,7 @@ plot_tier_bar <- function(dataset, tier_no, results_no){
 plot_tier_pie <- function(dataset, tier_no, results_no){
   col_name = sprintf("Tier%d", tier_no)
   pie_tier <-
-    ggplot(get_tier_data(categories, tier_no, results_no), aes(x = "", y = (N_items / sum(N_items) * 100), fill = !!sym(col_name))) +
+    ggplot(get_tier_data(dataset, tier_no, results_no), aes(x = "", y = (N_items / sum(N_items) * 100), fill = !!sym(col_name))) +
     geom_bar(stat = "identity", width = 1, color = "white") +
     coord_polar("y", start = 0) +
     theme_void() + 
@@ -307,11 +307,51 @@ agora <-
   mutate(Category, Category = ifelse(str_detect(Category, "trim"),"Drugs/Cannabis/Shake", Category)) %>%
   mutate(Category, Category = ifelse(str_detect(Category, "UFOs"),"Info/eBooks/Aliens", Category))
 ```
-We reparse the `categories` dataset to update it.
+Once we drawn a prleiminary profile of the market categories, we now focus on prices.
+As in every darkweb market, prices are in expressed in bitcoins. Moreover, the feature is a string which encodes both the price and the currency. We need to make it tidy by converting it and getting tid of the currency, which is always the same for all prices.
+```{r}
+agora <-
+  agora %>%
+  separate(Price, into = c("PriceBTC", "Currency"), sep = " ") %>%
+  mutate(PriceBTC = as.numeric(PriceBTC)) %>%
+  select(-c("Currency"))
+agora
+```
+
+Upon conversion, PriceBTC is represented with the scientific notation due to its many decimal digits. We round it to 4 decimals, which is precise enough.
+```{r}
+agora <-
+  agora %>%
+  mutate(PriceBTC = round(PriceBTC, 4))
+agora
+```
+
+TODO >> VALIDATE FEATURES
+We validate the new feature by checking for null values.
+```{r}
+agora %>%
+  filter(is.na(PriceBTC))
+```
+We found some other misparsed entries. Luckily they are a few, so we drop them.
+```{r}
+agora <-
+  agora %>%
+  filter(!is.na(PriceBTC))
+```
+Bitcoin are a volatile currency, and they may be less informative than a standard currency: a feature expressing the value in euros or dollars may be useful. We recall that this dataset dates back to 2014/2015, so we need to look up the average value of bitcoin in these years.
+```{r}
+#https://freecurrencyrates.com/en/exchange-rate-history/BTC-EUR/2015 shows min and max per year, take the mean between max and min of two years
+btc_eur_rate = 302.495
+agora <-
+  agora %>%
+  mutate(PriceEUR = round(PriceBTC * btc_eur_rate, 2), after = PriceBTC) #check how to add column near PRICEBTC
+agora
+```
+
+
 ```{r}
 categories <-
   agora %>%
-  select(Category) %>%
   mutate(Depth = str_count(Category, "/") + 1) %>%
   separate(Category, into = c("Tier1", "Tier2", "Tier3"), sep = "/")
 ```
