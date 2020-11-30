@@ -34,6 +34,8 @@ For this project you shall carry out at least the following.
 The dataset under analysis is a Kaggle dataset (find it [here](https://www.kaggle.com/philipjames11/dark-net-marketplace-drug-data-agora-20142015)) created from a raw html rip of the Agora website (years 2014/2015), which was disclosed by an unknown Reddit user and which lead, probably, to the Agora shutdown a few months after. The Kaggle dataset curator states that he obtained the data from a 3rd party source, but acknowledges its origin from the [Darknet Web Archives](https://www.gwern.net/DNM-archives), a huge collection of scraped/mirrored data from the Dark Net Markets between years 2013-2015 and used as a reference from many papers related to studies on darknet markets. Moreover, he advises that some operations already have been made to the dataset: duplicated listings have been merged into a single listing, and the price has been averaged across merged duplicates.
 
 The exploration of this dataset could lead to some interesting findings. Examples are potential correlations between different illegal items and from their shipping origin/destination, price estimate in certain regions in the world and identifying high risk regions or vendors.
+
+Bitcoin is said to be the de facto currency of the dark web, and was used as currency in this market too. A time-series dataset, which we extracted from the archives of a [stock exchange website](https://www.investing.com/), is used as a support to achieve a precise conversion of the original bitcoin price to the euro currency.
 **DISCLAIMER: darkweb is a treacherous dimension, and most of transaction on darknet markets involve illegal items. The following analysis does not intend neither to encourage illegal activities in any way, nor to promote reckless darkweb surfing. Rather, it aims to perform an analysis to try to identify the past behaviours of one of the biggest of such market platforms.**
 
 ## Dataset description
@@ -317,16 +319,6 @@ agora <-
   select(-c("Currency"))
 agora
 ```
-
-Upon conversion, PriceBTC is represented with the scientific notation due to its many decimal digits. We round it to 4 decimals, which is precise enough.
-```{r}
-agora <-
-  agora %>%
-  mutate(PriceBTC = round(PriceBTC, 4))
-agora
-```
-
-TODO >> VALIDATE FEATURES
 We validate the new feature by checking for null values.
 ```{r}
 agora %>%
@@ -338,7 +330,40 @@ agora <-
   agora %>%
   filter(!is.na(PriceBTC))
 ```
-Bitcoin are a volatile currency, and they may be less informative than a standard currency: a feature expressing the value in euros or dollars may be useful. We recall that this dataset dates back to 2014/2015, so we need to look up the average value of bitcoin in these years.
+Despite the feature being now tidy, it still is not so informative. Prices expressed in Bitcoin are less informative than prices expressed in standard currencies. This mainly for two reasons:
+
+* Agora dataset is from years 2014/2015. Bitcoin value back in those years is probably very different from its current one.
+* People are used to express values with standard currencies. Knowing that a price is 0.025 BTC give a less precise idea than knowing it is 3882 euro, even for those who does not use it as their main currency.
+
+So we need to convert the original price to another currency. The problem is that Bitcoin is very volatile: its value quickly changes on a daily basis, and *we are dealing with data covering a timespan of two years and without an indication about the exact date at which a particular item was on sale*. Thus, we need a precise method to achieve a meaningful enough conversion factor to craft a new price feature.
+For this task, we use a dataset which we extracted from [Investing.com](https://www.investing.com/), a reputable website offering stock market services. Since Bitcoin/Euro exchange rate is listed on the stock exchange, we can easily find data related to its value over a certain period.
+```{r message = FALSE}
+btc_eur <- read_csv("data/BTCHist01012014.csv")
+```
+```{r}
+btc_eur
+```
+This dataset is a snapshot of the financial market related to BTC/EUR exchange rate over the time period 01/01/2014 - 30/11/2020.
+A market analysis on the fluctuation of Bitcoin value is complex and out of the scope of this project, but to have an idea of the volatility of this cryptocurrency we can see the first and last entry of this dataset:
+```{r}
+head(btc_eur, n = 1)
+tail(btc_eur, n = 1)
+```
+We see that on date 01/01/2014 the BTC/EUR exchange rate was `815.9`. Almost six years later, on 30/11/2020, the same rate is `18646.0`.
+But we don't need to look over a very wide timespan to understand Bitcoin's volatility. Let's compare years of the period which matters to us, namely years 2014-2015:
+```{r}
+btc_eur %>%
+  filter(Date == "Jan 01, 2014") %>%
+  head(n = 1)
+```
+In date 01/01/2014, one bitcoin was worth `815` euros.
+```{r}
+btc_eur %>%
+  filter(Date == "Jan 01, 2015") %>%
+  head(n = 1)
+```
+Exactly one year later, its value is less than a half!
+This clearly may represent a problem in our analysis, because we lack a time reference indicating the exact date of sale of items. So we use this dataset as a mean to obtain an exchange rate which is as reliable as possible.
 ```{r}
 #https://freecurrencyrates.com/en/exchange-rate-history/BTC-EUR/2015 shows min and max per year, take the mean between max and min of two years
 btc_eur_rate = 302.495
