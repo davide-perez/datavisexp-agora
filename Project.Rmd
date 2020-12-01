@@ -9,6 +9,7 @@ library(tidyverse)
 library(countrycode)
 library(ggplot2)
 library(gridExtra)
+library(lubridate)
 ```
 
 ## Project task
@@ -363,13 +364,33 @@ btc_eur %>%
   head(n = 1)
 ```
 Exactly one year later, its value is less than a half!
-This clearly may represent a problem in our analysis, because we lack a time reference indicating the exact date of sale of items. So we use this dataset as a mean to obtain an exchange rate which is as reliable as possible.
+This clearly may represent a problem in our analysis, because we lack a time reference indicating the exact item date of sale. So we use this dataset as a mean to obtain an exchange rate which is as reliable as possible.
+
+First we clean and filter the dataset to suit our needs. We are only interested to the date and the price in a specific timespan.
+```{r}
+btc_eur <-
+  btc_eur %>%
+  select(`Date`, Price) %>%
+  mutate(`Date` = mdy(`Date`)) %>%
+  filter(`Date` < as_date("2016-01-01"))
+btc_eur
+```
+```{r}
+btc_eur %>%
+  ggplot(aes(x = Date, y = Price)) +
+  geom_line(na.rm = TRUE) +
+  labs(x = "Date", y = "BTC/EUR") +
+  scale_y_continuous(labels = scales::dollar_format())
+  #geom_density()
+```
+
+
 ```{r}
 #https://freecurrencyrates.com/en/exchange-rate-history/BTC-EUR/2015 shows min and max per year, take the mean between max and min of two years
 btc_eur_rate = 302.495
 agora <-
   agora %>%
-  mutate(PriceEUR = round(PriceBTC * btc_eur_rate, 2), after = PriceBTC) #check how to add column near PRICEBTC
+  mutate(PriceEUR = round(PriceBTC * btc_eur_rate, 2), .after = PriceBTC) #check how to add column near PRICEBTC
 agora
 ```
 
