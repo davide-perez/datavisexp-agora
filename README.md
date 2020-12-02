@@ -1,5 +1,5 @@
 # datavisexp-agora
- <h3>What's this?</h3>
+
 This repository hosts the project which has been developed as part of the university course **Data Visualization and Exploration**, which teaches dataset exploration techniques
 using the R language.
 Requirements of such project were the following:
