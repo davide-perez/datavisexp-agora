@@ -24,3 +24,10 @@ The exploration of this dataset could lead to some interesting findings. Example
 
 **DISCLAIMER: darkweb is a treacherous dimension, and most of transaction on darknet markets involve illegal items. The following does not intend neither to encourage illegal activities in any way, nor to promote reckless darkweb surfing. 
 Rather, it aims to perform an analysis to try to identify the behaviours and characteristics of one of the biggest of such market platforms.**
+
+
+<h3> Files description </h3>
+The project is a notebook created with RStudio. An R Notebook is an R Markdown document with chunks that can be executed independently and interactively, and it can be rendered in different formats such as .pdf or .html.
+* *Project.Rmd* is the actual source file
+* *Project.nb.html* is the rendered file created upon compilation
+* *renv.lock* contains the dependencies of the project. It can be used to restore them via the *renv* tool.
