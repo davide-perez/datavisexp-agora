@@ -357,7 +357,7 @@ btc_eur %>%
   filter(Date == "Jan 01, 2014") %>%
   head(n = 1)
 ```
-In date 01/01/2014, one bitcoin was worth `815` euros.
+In date 01/01/2014, one bitcoin was worth `815.9` euros.
 ```{r}
 btc_eur %>%
   filter(Date == "Jan 01, 2015") %>%
@@ -366,13 +366,13 @@ btc_eur %>%
 Exactly one year later, its value is less than a half!
 This clearly may represent a problem in our analysis, because we lack a time reference indicating the exact item date of sale. So we use this dataset as a mean to obtain an exchange rate which is as reliable as possible.
 
-First we clean and filter the dataset to suit our needs. We are only interested to the date and the price in a specific timespan.
+First we clean and filter the dataset to suit our needs. We are only interested to the date and the price in a specific timespan: from a [quick search](https://en.wikipedia.org/wiki/Agora_%28online_marketplace%29) we see that the website shut down in August 2015, so we can narrow the interval.
 ```{r}
 btc_eur <-
   btc_eur %>%
   select(`Date`, Price) %>%
   mutate(`Date` = mdy(`Date`)) %>%
-  filter(`Date` < as_date("2016-01-01"))
+  filter(`Date` < as_date("2015-08-31"))
 btc_eur
 ```
 ```{r}
@@ -380,21 +380,24 @@ btc_eur %>%
   ggplot(aes(x = Date, y = Price)) +
   geom_line(na.rm = TRUE) +
   labs(x = "Date", y = "BTC/EUR") +
-  scale_y_continuous(labels = scales::dollar_format())
-  #geom_density()
+  scale_y_continuous(labels = scales::dollar_format(suffix = "€", prefix = ""))
 ```
-
-
+As we expected, exchange rate was quite variable in these years too. We compute the average value and take it as factor to convert bitcoins to euro:
 ```{r}
-#https://freecurrencyrates.com/en/exchange-rate-history/BTC-EUR/2015 shows min and max per year, take the mean between max and min of two years
-btc_eur_rate = 302.495
+btc_eur_rate <-
+  mean(btc_eur[["Price"]])
+btc_eur_rate
+```
+Now we can use this rate to create a new column in our dataset.
+```{r}
 agora <-
   agora %>%
-  mutate(PriceEUR = round(PriceBTC * btc_eur_rate, 2), .after = PriceBTC) #check how to add column near PRICEBTC
+  mutate(PriceEUR = round(PriceBTC * btc_eur_rate, 2), .after = PriceBTC) %>%
+  mutate(PriceBTC = round(PriceBTC, 4))
 agora
 ```
 
-
+#TODO: treemap of category shares or vendors, rating clean and analysis on vendors
 ```{r}
 categories <-
   agora %>%
