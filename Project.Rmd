@@ -6,10 +6,10 @@ author: "Davide Perez Cuevas"
 
 ```{r setup}
 library(tidyverse)
+library(lubridate)
 library(countrycode)
 library(ggplot2)
 library(gridExtra)
-library(lubridate)
 ```
 
 ## Project task
@@ -171,10 +171,18 @@ top_20_vendors %>%
     geom_col() +
     labs(title = 'Top 20 vendors per no. of items', x = 'No. of items on sale', y = 'Vendor')
 ```
-We see that the top four vendors have a similar number of items listed, while from the fifth on there is a noticeable gap. Probably the elite vendors have the largest sales volume and dominate the market, at the expenses of the other, less renowned vendors. We hypotize that **reputation is an important factor when dealing with this kind of commerce, since it is difficult to obtain a refund if something goes wrong**.
+We see that the top four vendors have a similar number of items listed, while from the fifth on there is a noticeable gap. Probably the elite vendors have the largest sales volume and dominate the market, at the expenses of the other, less renowned vendors.
+
+We visualize the same data by means of the so-called treemap. The bigger the rectangle, the bigger the number of items on sale from the related vendor.
+While this visualization is less effectve than the bar chart in terms of quantifying sold items, it highlights better other insights about this data. For example, it is evident that the top four vendors (stacked at the left handside of the plot) have a comparable sales volume.
+```{r}
+top_20_vendors %>%
+  ggplot(aes(area = N_items, fill = Vendor, label = Vendor)) +
+  geom_treemap(show.legend = FALSE) +
+  geom_treemap_text()
+```
 
 
-### Categories exploration
 
 We now focus our attention on the different categories of the market.
 ```{r}
