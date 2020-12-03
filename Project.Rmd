@@ -181,7 +181,15 @@ top_20_vendors %>%
   geom_treemap(show.legend = FALSE) +
   geom_treemap_text()
 ```
-
+Another indicator of a vendor's weight on the market could be the *Rating* feature.
+```{r}
+agora %>%
+  select(Vendor, Rating) %>%
+  distinct() %>%
+  arrange(desc(Rating))
+```
+First thing we notice are two misparsed row, which we remove. Secondly, we also have to handle the (many) cases in which the vendor did not sell enough items to have a meaningful rating. In this case, it makes sense to use NA as an indicator that the rating is not present at all.
+#TODO: clean rating keeping only number, set NA where not numeric or sufficient ratings earned.
 
 
 We now focus our attention on the different categories of the market.
