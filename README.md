@@ -27,7 +27,8 @@ Rather, it aims to perform an analysis to try to identify the behaviours and cha
 
 
 <h3> Files description </h3>
-The project is a notebook created with RStudio. An R Notebook is an R Markdown document with chunks that can be executed independently and interactively, and it can be rendered in different formats such as .pdf or .html.
+The project is a notebook created with RStudio. An R Notebook is a markdown document with R chunks that can be executed independently and interactively, and can be rendered in different formats such as .pdf or .html.
+
 * *Project.Rmd* is the actual source file
 * *Project.nb.html* is the rendered file created upon compilation
 * *renv.lock* contains the dependencies of the project. It can be used to restore them via the *renv* tool.
