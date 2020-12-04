@@ -188,8 +188,44 @@ agora %>%
   distinct() %>%
   arrange(desc(Rating))
 ```
-First thing we notice are two misparsed row, which we remove. Secondly, we also have to handle the (many) cases in which the vendor did not sell enough items to have a meaningful rating. In this case, it makes sense to use NA as an indicator that the rating is not present at all.
+First thing we notice are two misparsed row, which we remove. 
+```{r}
+agora <- 
+  agora %>%
+  filter(Rating != 'Worldwide') %>%
+  filter(Rating != 'USA')
+```
+Secondly, we must clean the feature in some way.
+```{r}
+agora %>%
+  select(Rating) %>%
+  distinct()
+```
+We start by handling the missing ratings, which mean that the vendor did not close enough transactions: in this case, it makes sense to use NA as an indicator that the rating is not present at all.
+```{r}
+agora <-
+  agora %>%
+  mutate(Rating = ifelse(str_detect(Rating, "deals"), NA, Rating))
+```
+Then we clean the other values.
+```{r}
+agora <-
+  agora %>%
+  mutate(Rating = str_remove_all(Rating, "~")) %>%
+  mutate(Rating = str_remove_all(Rating, "/5")) %>%
+  mutate(Rating = as.numeric(Rating))
+```
+We successfully cleaned the Rating feature.
+```{r}
+agora %>%
+  select(Rating) %>%
+  distinct() %>%
+  arrange(desc(Rating))
+```
+
+
 #TODO: clean rating keeping only number, set NA where not numeric or sufficient ratings earned.
+
 
 
 We now focus our attention on the different categories of the market.
