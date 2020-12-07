@@ -109,9 +109,6 @@ We compute the percentage of null values to get an idea of the portion of data a
      #across(agora_raw, ( 100 * round(mean( is.na(.) ), 6 )))
      #)
 ```
-```{r}
-#print pie chart?
-```
 
 We have now a clearer idea: for `Remarks` column, almost all data is missing, while for `Destination` column a solid 44,81% of the listings have a missing value.
 For what concerns `Destination`, the Kaggle dataset description states that an empty value probably represents an item being shipped worldwide: by means of a quick research on the website the dataset was originally published on and on the archives it references, like [this one](https://archive.org/details/dnmarchives), seems that a missing `Origin` or `Destination` means that the item is shipped from or ships to worldwide, indeed. So we can assume that missing values in such columns have such meaning.
@@ -207,7 +204,7 @@ agora <-
   agora %>%
   mutate(Rating = ifelse(str_detect(Rating, "deals"), NA, Rating))
 ```
-Then we clean the other values.
+Then we clean the other invalid values.
 ```{r}
 agora <-
   agora %>%
@@ -215,16 +212,22 @@ agora <-
   mutate(Rating = str_remove_all(Rating, "/5")) %>%
   mutate(Rating = as.numeric(Rating))
 ```
-We successfully cleaned the Rating feature.
+We successfully processed the Rating feature.
 ```{r}
 agora %>%
   select(Rating) %>%
   distinct() %>%
   arrange(desc(Rating))
 ```
+```{r}
+agora %>%
+  select(Vendor, Rating) %>%
+  distinct() %>%
+  ggplot(aes(x = Rating)) +
+  geom_histogram()
+```
+We see that bad ratings are very rare: most ratings are among 4 and 5, with a very high number of vendors with max ratings. **This may mean that the market is a "safe" place where to buy the kind of items it offers.**
 
-
-#TODO: clean rating keeping only number, set NA where not numeric or sufficient ratings earned.
 
 
 
@@ -362,7 +365,7 @@ agora <-
   mutate(Category, Category = ifelse(str_detect(Category, "trim"),"Drugs/Cannabis/Shake", Category)) %>%
   mutate(Category, Category = ifelse(str_detect(Category, "UFOs"),"Info/eBooks/Aliens", Category))
 ```
-Once we drawn a prleiminary profile of the market categories, we now focus on prices.
+Once we drawn a preliminary profile of the market categories, we now focus on prices.
 As in every darkweb market, prices are in expressed in bitcoins. Moreover, the feature is a string which encodes both the price and the currency. We need to make it tidy by converting it and getting tid of the currency, which is always the same for all prices.
 ```{r}
 agora <-
@@ -449,7 +452,7 @@ agora <-
 agora
 ```
 
-#TODO: treemap of category shares or vendors, rating clean and analysis on vendors
+
 ```{r}
 categories <-
   agora %>%
