@@ -10,6 +10,7 @@ library(lubridate)
 library(countrycode)
 library(ggplot2)
 library(gridExtra)
+library(treemapify)
 ```
 
 ## Project task
@@ -37,7 +38,7 @@ The dataset under analysis is a Kaggle dataset (find it [here](https://www.kaggl
 The exploration of this dataset could lead to some interesting findings. Examples are potential correlations between different illegal items and from their shipping origin/destination, price estimate in certain regions in the world and identifying high risk regions or vendors.
 
 Bitcoin is said to be the de facto currency of the dark web, and was used as currency in this market too. A time-series dataset, which we extracted from the archives of a [stock exchange website](https://www.investing.com/), is used as a support to achieve a precise conversion of the original bitcoin price to the euro currency.
-**DISCLAIMER: darkweb is a treacherous dimension, and most of transaction on darknet markets involve illegal items. The following analysis does not intend neither to encourage illegal activities in any way, nor to promote reckless darkweb surfing. Rather, it aims to perform an analysis to try to identify the past behaviours of one of the biggest of such market platforms.**
+**DISCLAIMER: darkweb is a treacherous dimension, and most of transaction on darknet markets involve illegal items. The following does not intend neither to encourage illegal activities in any way, nor to promote reckless darkweb surfing. Rather, it aims to perform an analysis to try to identify the past behaviours of one of the biggest of such market platforms.**
 
 ## Dataset description
 *DISCLAIMER n.2: in the follwing, we will use the term dataset as a broad term to refer both the data collection in analysis and the parsed data in R in form of a dataframe or tibble object.*
@@ -50,9 +51,8 @@ Then we get a first glimpse (in a very real sense) of the information in it:
 ```{r}
 glimpse(agora_raw)
 ```
-We see that the Agora dataset contains more than 100000 entries about different products offered on the omonymous market and made up of 9 features.
-All columns have been parsed with data type `char`, even the one expressing numerical values such as `Price` or `Rating`.
-Here we give a detailed description of the features (based on the description of the Kaggle dataset):
+We see that the Agora dataset contains more than 100000 entries about different products and 9 features.
+Here we give a description of the features as in Kaggle:
 
 * `Vendor`: username of the seller
 
@@ -112,15 +112,12 @@ We compute the percentage of null values to get an idea of the portion of data a
 
 We have now a clearer idea: for `Remarks` column, almost all data is missing, while for `Destination` column a solid 44,81% of the listings have a missing value.
 For what concerns `Destination`, the Kaggle dataset description states that an empty value probably represents an item being shipped worldwide: by means of a quick research on the website the dataset was originally published on and on the archives it references, like [this one](https://archive.org/details/dnmarchives), seems that a missing `Origin` or `Destination` means that the item is shipped from or ships to worldwide, indeed. So we can assume that missing values in such columns have such meaning.
-However, the `Remarks` feature is not so relevant, both because of missing data and because the information it holds is not useful to the purpose of our analysis. So we can safely drop it.
+However, the `Remarks` feature is not so relevant, so we can safely drop it.
 ```{r}
 agora <-
   agora_raw %>%
   select(-c('Remarks'))
 ```
-
-
-The `Rating` feature expresses the rating given to the seller from other users on the marketplace, which presumably comes as the mean of the ratings given by single users. Such total rating is not calculated for a vendor until a fixed minum number number of ratings has been received. The Kaggle dataset description explains that a missing value, or a bogus non-numerical one, means that the dealer has not received enough ratings yet. There is no reason to exlude such vendors, so we will not drop listings having a null listing value.
 
 The `Item` feature is an information that is required for a valid listing in any marketplace: a missing value could indicated a misparsed entry. Same reasoning goes for the `Price` feature.
 ```{r}
@@ -153,7 +150,7 @@ agora %>%
   distinct(Vendor) %>% 
   count()
 ```
-On the marketplace there are almost 3200 vendors. We focus our attention on the first 20 ones.
+On the marketplace there are almost 3200 vendors. We focus our attention on the top 20 ones.
 
 ```{r message=false}
 top_20_vendors <- 
@@ -168,7 +165,7 @@ top_20_vendors %>%
     geom_col() +
     labs(title = 'Top 20 vendors per no. of items', x = 'No. of items on sale', y = 'Vendor')
 ```
-We see that the top four vendors have a similar number of items listed, while from the fifth on there is a noticeable gap. Probably the elite vendors have the largest sales volume and dominate the market, at the expenses of the other, less renowned vendors.
+We see that the top four vendors have a similar number of items listed, while from the fifth on there is a noticeable gap.
 
 We visualize the same data by means of the so-called treemap. The bigger the rectangle, the bigger the number of items on sale from the related vendor.
 While this visualization is less effectve than the bar chart in terms of quantifying sold items, it highlights better other insights about this data. For example, it is evident that the top four vendors (stacked at the left handside of the plot) have a comparable sales volume.
@@ -178,7 +175,7 @@ top_20_vendors %>%
   geom_treemap(show.legend = FALSE) +
   geom_treemap_text()
 ```
-Another indicator of a vendor's weight on the market could be the *Rating* feature.
+Another indicator of a vendor's weight on the market could be the *Rating* feature. It expresses the average rating given to the seller from other users on the marketplace.
 ```{r}
 agora %>%
   select(Vendor, Rating) %>%
@@ -198,7 +195,8 @@ agora %>%
   select(Rating) %>%
   distinct()
 ```
-We start by handling the missing ratings, which mean that the vendor did not close enough transactions: in this case, it makes sense to use NA as an indicator that the rating is not present at all.
+We start handling missing/literal values: they mean that the related vendor has not closed enough deals yet to compute a meaningful rating.
+In this case, it makes sense to use NA as an indicator that the rating is not present at all.
 ```{r}
 agora <-
   agora %>%
@@ -226,7 +224,7 @@ agora %>%
   ggplot(aes(x = Rating)) +
   geom_histogram()
 ```
-We see that bad ratings are very rare: most ratings are among 4 and 5, with a very high number of vendors with max ratings. **This may mean that the market is a "safe" place where to buy the kind of items it offers.**
+We see that bad ratings are very rare: most ratings are among 4 and 5, with a very high number of vendors with max ratings. **This may mean that the market is a "safe" place where to buy the kind of items it offers**.
 
 
 
@@ -443,7 +441,7 @@ btc_eur_rate <-
   mean(btc_eur[["Price"]])
 btc_eur_rate
 ```
-Now we can use this rate to create a new column in our dataset.
+We can now create a new column in our dataset.
 ```{r}
 agora <-
   agora %>%
@@ -453,12 +451,22 @@ agora
 ```
 
 
+
+Now that we have reliable pricing info, we can go back on the categories information obtain new insights (remember that cat. tier 4 has been merged with tier 3).
 ```{r}
 categories <-
   agora %>%
   mutate(Depth = str_count(Category, "/") + 1) %>%
   separate(Category, into = c("Tier1", "Tier2", "Tier3"), sep = "/")
 ```
+```{r}
+tier1 <-
+  get_tier_data(categories, 1, 10)
+tier1
+```
+# TODO: Boxplot of prices per category to identify means and outliers. Modify functions to transform even the second column into a variable.
+
+
 
 
 
