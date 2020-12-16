@@ -460,31 +460,53 @@ categories <-
   mutate(Depth = as_factor(Depth)) %>%
   separate(Category, into = c("Tier1", "Tier2", "Tier3"), sep = "/")
 ```
-
-# TODO: Boxplot of prices per category to identify means and outliers. Modify functions to transform even the second column into a variable.
-
-
+We use a boxplot to visualize the prices per category tier.
 ```{r}
 categories %>%
   ggplot(aes(x = Depth, y = PriceEUR)) + 
-  geom_boxplot(outlier.colour="red", outlier.shape=8, outlier.size=4) +
-  scale_y_continuous(labels = scales::dollar_format(suffix = "€", prefix = ""))
+  geom_boxplot(outlier.colour = "red", outlier.shape = 1, outlier.size = 4) +
+  scale_y_log10(labels = scales::dollar_format(suffix = "€", prefix = ""), 
+                breaks = scales::trans_breaks("log10", function(x) 10^x)) +
+  labs(title = "Prices per Category Tier", x = "Category Tier", y = "Price")
 ```
-```{r}
-str(catego)
-```
+We see a noticeable number of red circles. However, this does not automatically classify them as outliers: identification of such values is tricky and should not be done only relying on boxplots only. This is even more true when dealing with market prices, where many market-related parameters should be taken into account. More probably, these outliers are just values that do not fall in a normal distribution: in other words, there is a number of items whose price is very high and far away from the median price and the 75th percentile.
 
+Zooming on the categories, we notice the same behavior:
 ```{r}
-Scatterplot<-ggplot(
-  diamonds[sample(nrow(diamonds), 1000), ],
-  aes(carat, price, colour=clarity, group = 1)
-)+
-  geom_point(position="jitter", alpha=0.6)+
-  facet_grid(~cut) + 
-  scale_x_continuous(breaks=seq(0, 5, 1)) + 
-  geom_boxplot(alpha=0, colour="black") +  
-  scale_color_brewer(palette = "Set1")
+categories %>%
+  select(Tier1, PriceEUR) %>%
+  drop_na() %>%
+  ggplot(aes(x = Tier1, y = PriceEUR)) + 
+  geom_boxplot(outlier.colour = "red", outlier.shape = 1, outlier.size = 4) +
+  scale_y_log10(labels = scales::dollar_format(suffix = "€", prefix = ""),
+                breaks = scales::trans_breaks("log10", function(x) 10^x)) +
+  scale_x_discrete(guide = guide_axis(n.dodge=3)) +
+  labs(title = "Detailed Prices for Category Tier 1", x = "Category", y = "Price")
+
+categories %>%
+  select(Tier2, PriceEUR) %>%
+  drop_na() %>%
+  ggplot(aes(Tier2, PriceEUR)) + 
+  geom_boxplot(outlier.colour = "red", outlier.shape = 1, outlier.size = 4) +
+  scale_y_log10(labels = scales::dollar_format(suffix = "€", prefix = ""),
+                breaks = scales::trans_breaks("log10", function(x) 10^x)) +
+  scale_x_discrete(guide = guide_axis(n.dodge = 7)) +
+  labs(title = "Detailed Prices for Category Tier 2", x = "Category", y = "Price")
+
+categories %>%
+  select(Tier3, PriceEUR) %>%
+  drop_na() %>%
+  ggplot(aes(Tier3, PriceEUR)) + 
+  geom_boxplot(outlier.colour = "red", outlier.shape = 1, outlier.size = 4) +
+  scale_y_log10(labels = scales::dollar_format(suffix = "€", prefix = ""),
+                breaks = scales::trans_breaks("log10", function(x) 10^x)) +
+  scale_x_discrete(guide = guide_axis(n.dodge = 7)) +
+  labs(title = "Detailed Prices for Category Tier 3", x = "Category", y = "Price")
 ```
+However, these boxplot give a nice visual feedback about the price distribution on different levels. For example, in each of them we can see that prices for some categories, such as Drugs, fluctuates a lot.
+
+#TODO: geographical analyisis (clean values before)
+
 
 
 
