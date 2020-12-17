@@ -528,15 +528,19 @@ Then we edit the file with a text editor, and add a new `CountryCode` which we m
 
 * Each country string is mapped to its ISO alpha-3 country code.
 
-* Continents are mapped to a 2-digit code (Europe -> EU).
+* Continents are mapped to a 2-digit code (EUROPE -> EU).
 
 * Worldwide shipping is represented by the code `WW`.
 
 * In case where more than a country/continent is listed, their corresponding ISO codes will be concatenated with a comma as separator (Europe, Usa, Asia -> EU,USA,AS)
 
-* In case a country/continent is excluded, a ! is prepended to its country code (Worldwide except Australia -> WW,!AUS)
+* In case a country/continent is excluded, a ! is prepended to its country code (WORLDWIDE EXCEPT AUSTRALIA -> WW,!AUS)
 
-* Unknown destination are left empty
+* When possible, a country list is summarized by the most general one. For example, EUROPE AND GERMANY -> EU since Germany is in Europe.
+
+* Continent classification respects political boundaries of years 2014-2015. For example, Great Britain was still a member of European Union.
+
+* Unknown countries and those who cannot be described by means of the aforementioned rules are left empty.
 
 Once we edited the files, we re-import them.
 ```{r}
