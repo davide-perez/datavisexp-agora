@@ -540,11 +540,20 @@ Then we edit the file with a text editor, and add a new `CountryCode` which we m
 
 * Continent classification respects political boundaries of years 2014-2015. For example, Great Britain was still a member of European Union.
 
-* Unknown countries and those who cannot be described by means of the aforementioned rules are left empty.
+* Unknown countries and those who cannot be described by means of the aforementioned rules are left empty or ignored: this happens especially for geographical area which cannot be expressed in terms of proper countries or continents, such as "South America" or "Scandinavia".
 
 Once we edited the files, we re-import them.
+```{r message = FALSE}
+destination_clean <- read_csv2("data/destination_clean.csv")
+```
 ```{r}
-
+destination_clean
+```
+```{r message = FALSE}
+origin_clean <- read_csv2("data/origin_clean.csv")
+```
+```{r}
+origin_clean
 ```
 
 
