@@ -103,8 +103,7 @@ We compute the percentage of null values to get an idea of the portion of data a
 ```
 
 We have now a clearer idea: for `Remarks` column, almost all data is missing, while for `Destination` column a solid 44,81% of the listings have a missing value.
-For what concerns `Destination`, the Kaggle dataset description states that an empty value probably represents an item being shipped worldwide: by means of a quick research on the website the dataset was originally published on and on the archives it references, like [this one](https://archive.org/details/dnmarchives), seems that a missing `Origin` or `Destination` means that the item is shipped from or ships to worldwide, indeed. So we can assume that missing values in such columns have such meaning.
-However, the `Remarks` feature is not so relevant, so we can safely drop it.
+The `Remarks` feature is not so relevant, so we can safely drop it.
 ```{r}
 agora <-
   agora_raw %>%
@@ -542,18 +541,54 @@ Then we edit the file with a text editor, and add a new `CountryCode` which we m
 
 * Unknown countries and those who cannot be described by means of the aforementioned rules are left empty or ignored: this happens especially for geographical area which cannot be expressed in terms of proper countries or continents, such as "South America" or "Scandinavia".
 
+* As explained on the Kaggle dataset description, a missing `Destination` or `Origin` value probably means that the item ships worldwide. This is also mentioned on other website that hosted the dataset, such as [this one](https://archive.org/details/dnmarchives). Given this, we assume this exact meaning, and replace `NA` with `WW` for both `Origin` and `Destination`.
+
 Once we edited the files, we re-import them.
 ```{r message = FALSE}
 destination_clean <- read_csv2("data/destination_clean.csv")
-```
-```{r}
-destination_clean
-```
-```{r message = FALSE}
 origin_clean <- read_csv2("data/origin_clean.csv")
 ```
+
+We then join the two cleaned datasets with the original dataset and replace the `Origin` and `Destination` column with their clean versions, and drop rows which could not be cleaned.
 ```{r}
-origin_clean
+agora <-
+  inner_join(agora, origin_clean)
+agora <-
+  inner_join(agora, destination_clean)
+
+agora <-
+  agora %>%
+  select(-c(Origin, Destination)) %>%
+  rename(Origin = ShipFrom, Destination = ShipTo) %>%
+  drop_na(Origin, Destination)
+```
+
+
+#TODO: a few lines have the negation, consider clearing them. Pivot longer to get duplicate entries for items which ship to more than a country.
+```{r}
+agora %>%
+  select(Destination) %>%
+  distinct()
+```
+
+
+```{r}
+agora %>%
+  filter(str_detect(Destination, "!"))
+```
+
+```{r}
+agora %>%
+  filter(str_detect(Origin, "!"))
+```
+
+
+```{r}
+agora2 %>%
+  select(CountryCode) %>%
+  filter(!is.na(CountryCode)) %>%
+  distinct() %>%
+  arrange(CountryCode)
 ```
 
 
