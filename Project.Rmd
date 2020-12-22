@@ -144,17 +144,14 @@ agora %>%
 On the marketplace there are almost 3200 vendors. We focus our attention on the top 20 ones.
 
 ```{r message=false}
-top_20_vendors <- 
-  agora %>%
+agora %>%
   group_by(Vendor) %>%
   summarise(N_items = n()) %>%
   arrange(desc(N_items)) %>%
-  slice_head(n = 20)
-
-top_20_vendors %>% 
-    ggplot(aes(x = N_items, y = reorder(Vendor, N_items))) +
-    geom_col() +
-    labs(title = 'Top 20 vendors per no. of items', x = 'No. of items on sale', y = 'Vendor')
+  slice_head(n = 20) %>% 
+  ggplot(aes(x = N_items, y = reorder(Vendor, N_items))) +
+  geom_col() +
+  labs(title = 'Top 20 vendors per no. of items', x = 'No. of items on sale', y = 'Vendor')
 ```
 We see that the top four vendors have a similar number of items listed, while from the fifth on there is a noticeable gap.
 
@@ -577,7 +574,8 @@ agora <-
 ```
 We can now duplicate rows depending on the countries in the two columns
 ```{r}
-agora %>%
+agora <-
+  agora %>%
   separate_rows(Origin, sep = ",") %>%
   separate_rows(Destination, sep = ",") %>%
   distinct()
@@ -585,7 +583,41 @@ agora %>%
 We managed to clean the `Origin` and `Destination` column and may now start with shipping-related exploration.
 
 
+As a first insight, we want to know the major sources and destinations for the market products.
+```{r}
+top_dest <-
+  agora %>%
+  group_by(Origin) %>%
+  summarise(N_items = n()) %>%
+  arrange(desc(N_items)) %>%
+  slice_head(n = 20) %>%
+  ggplot(aes(x = N_items, y = reorder(Origin, N_items))) +
+  geom_col() +
+  labs(title = 'Top 30 origin countries', x = 'No. of items on sale', y = 'Country')
 
+top_sources <-
+  agora %>%
+  group_by(Destination) %>%
+  summarise(N_items = n()) %>%
+  arrange(desc(N_items)) %>%
+  slice_head(n = 20) %>%
+  ggplot(aes(x = N_items, y = reorder(Destination, N_items))) +
+  geom_col() +
+  labs(title = 'Top 30 destination countries', x = 'No. of items on sale', y = 'Country')  
+  
+grid.arrange(top_dest, top_sources, ncol = 2)
+```
+With respect to items origin, USA dominates the market and also for shipping destinations it places itself in the top positions. In both plots we also find Europe, Australia, Germany and Canada as main origins/destinations, while the other countries have a negligible share. However, most vendors declare they are able to ship their products worldwide.
+
+We now look for the most used traffic routes:
+```{r}
+agora %>%
+  group_by(Origin, Destination) %>%
+  summarise(N_items = n()) %>%
+  mutate(percent = N_items/sum(N_items)) %>%
+  arrange(desc(N_items))
+```
+The USA route is 
 
 
 
