@@ -609,15 +609,24 @@ grid.arrange(top_dest, top_sources, ncol = 2)
 ```
 With respect to items origin, USA dominates the market and also for shipping destinations it places itself in the top positions. In both plots we also find Europe, Australia, Germany and Canada as main origins/destinations, while the other countries have a negligible share. However, most vendors declare they are able to ship their products worldwide.
 
-We now look for the most used traffic routes:
+We now look for the most used market routes:
 ```{r}
-agora %>%
+sales_channel <-
+  agora %>%
   group_by(Origin, Destination) %>%
-  summarise(N_items = n()) %>%
-  mutate(percent = N_items/sum(N_items)) %>%
-  arrange(desc(N_items))
+  summarise(`SalesVolume%` = round(n() / nrow(agora) * 100, digits = 2)) %>%
+  arrange(desc(`SalesVolume%`))
+sales_channel
 ```
-The USA route is 
+Again, the USA route stands out as the preferred sales channel, with roughly a 15% of the sales taking place on the American soil only. If we exclude the worldwide shipments, the second and third countries in the list are United Kingdom and Germany, which convey a cumulative sales volume of 10% ca.
+The following plot (find an effective plot)
+```{r}
+sales_channel %>%
+  slice_head(n = 5) %>%
+ggplot(aes(Origin, Destination)) +
+ geom_raster(aes(fill = `SalesVolume%`))
+```
+
 
 
 
