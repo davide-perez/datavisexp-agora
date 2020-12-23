@@ -614,19 +614,36 @@ We now look for the most used market routes:
 sales_channel <-
   agora %>%
   group_by(Origin, Destination) %>%
-  summarise(`SalesVolume%` = round(n() / nrow(agora) * 100, digits = 2)) %>%
-  arrange(desc(`SalesVolume%`))
+  summarise(`Sales Volume %` = round(n() / nrow(agora) * 100, digits = 4)) %>%
+  arrange(desc(`Sales Volume %`))
 sales_channel
 ```
-Again, the USA route stands out as the preferred sales channel, with roughly a 15% of the sales taking place on the American soil only. If we exclude the worldwide shipments, the second and third countries in the list are United Kingdom and Germany, which convey a cumulative sales volume of 10% ca.
-The following plot (find an effective plot)
+Again, on a total of 349 routes the American one stands out as the preferred, with roughly a 15% of the sales taking place internally to the USA. Exluding worldwide shipments, the second and third countries in the list are United Kingdom and Germany, which together convey a cumulative sales volume of 10% ca.
+Moreover, if we scroll through the dataset entries, we note that most of them have a very low sales volume, meaning that few items are shipped to or ship from those countries.
+However, more than a half of the market sales ships worldwide so even countries with low-volume or non-existent shipping routes can receive most of the items.
 ```{r}
 sales_channel %>%
-  slice_head(n = 5) %>%
-ggplot(aes(Origin, Destination)) +
- geom_raster(aes(fill = `SalesVolume%`))
+  ungroup() %>%
+  filter(Destination == "WW") %>%
+  summarize(`Items shipped worldwide %` = sum(`Sales Volume %`))
 ```
 
+To focus on the most important shipping routes, we define a threshold for the sales volume to filter out entries with a negligible traffic. Moreover, we exclude worldwide shipping to focus on the single countries.
+```{r}
+SalesVolumeThreshold = 0.1
+top_sales_channel <-
+  sales_channel %>%
+  filter(`Sales Volume %` >= SalesVolumeThreshold) %>%
+  filter(Origin != "WW") %>%
+  filter(Destination != "WW")
+```
+The following plot shows a tile representation of the top shipping routes with respect their importance in terms of sales volume.
+```{r}
+top_sales_channel %>%
+  ggplot(aes(x = Origin, y = Destination)) +
+  geom_tile(aes(fill = `Sales Volume %`)) +
+  scale_x_discrete(guide = guide_axis(n.dodge = 2))
+```
 
 
 
