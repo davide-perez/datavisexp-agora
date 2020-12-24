@@ -73,13 +73,13 @@ Here we give a description of the features as declared in Kaggle:
 ## Analysis overview
 Web scrapes may be difficult to analyze: they often are large, redundant and highly error-prone. This is particularly true for scrapes coming from black webmarkets: being located in the darkweb and treating illegal matters, they are highly unstable. Products and vendors may be banned and disappear from day to day, metadata such as category descriptions or shipping information can be wrong or intentionally misleading, prices fluctuation is high due to cryptocurrencies. Data is often both not well organized and not sanitized due to anonimity concerns. Thus, such data will never be comprehensive and give an overall, long-term view on the market situation, but it rather represents a (more or less complete) snapshot of the market in a given moment. Our dataset is not an exception, and even by giving a quick `glimpse` we understand it is quite dirty.
 
-Despite the intrinsic incompleteness, a complete enough dataset such as this one can give very helpful insights, but it requires quite a lot of cleaning and processing to be as reliable as possible.
+Despite the intrinsic incompleteness, a large enough dataset such as this one can give very helpful insights, but it requires quite a lot of cleaning and processing to be as reliable as possible.
 Given this, the analysis we will carry on will not follow a *waterfall* flow, in the sense that it will not be a procedure chaining cleaning, preprocessing and exploration tasks in a linear way. Rather, it will be an *iterative process* in which the analysis phases are intertwined, depending on the aspect we are analyzing. This is done in order to retain as much data as possible. For example, if we want to know the top vendors of the market we are not necessarily interested in knowing shipping-related information, and if we purged listings because of invalid information for such columns we would lose data and our analysis would become unreliable.
 Some things have to be handled as soon as possible, such as misparsed rows that could taint any type of exploration, but we will postpone the in-depth processing of single features until they are required.
 
 
 ## Handling missing and invalid values
-We inspect the missing values per column by computing the percentage of null values:
+We inspect the missing values per column by computing the percentage of null values per column:
 
 ```{r}
 agora_raw %>% 
@@ -192,7 +192,7 @@ agora %>%
   ggplot(aes(x = Rating)) +
   geom_histogram()
 ```
-We see that bad ratings are very rare: most ratings are among 4 and 5, with a very high number of vendors with top ratings. **This may mean that the market is a "safe" place where to buy the kind of items it offers**.
+We see that bad ratings are very rare: most ratings are among 4 and 5, with a very high number of vendors with top ratings.
 
 ###Item Categories and Pricing
 We now focus our attention on the different categories of the market.
@@ -536,17 +536,17 @@ agora %>%
 agora %>%
   filter(str_length(Origin) > 3)
 ```
-We could try solving this problem by inserting a duplicated row for each country listed in `Origin` and `Destination`. For example, from item `X` shipping to `USA,CAN` we obtain two rows: `X` shipping to `USA` and `X` shipping to `CAN`. This approach arises raises a new problem: several country lists contains "negations", i.e. countries where the item does not ship from/to, and splitting them would create meaningless entries. For example, separating an entry for item `Y` which ships to `WW,!AUS` would create two rows: item `Y` shipping to `WW` and item `Y` shipping to `!AUS`. This is clearly wrong, since we obtain incorrect informations. So, prior separating rows, we discard the ones containing country exclusions in shipping lists. We will lose some data (~ 10000 rows), but on the other hand our analysis will be more correct.
+We could try solving this problem by inserting a duplicated row for each country listed in `Origin` and `Destination`. For example, from item `X` shipping to `USA,CAN` we obtain two rows: `X` shipping to `USA` and `X` shipping to `CAN`. This approach arises raises a new problem: several country lists contain countries where the item does not ship from/to, and splitting them would create meaningless entries. For example, separating an entry for item `Y` which ships to `WW,!AUS` would create two rows: item `Y` shipping to `WW` and item `Y` shipping to `!AUS`. This is clearly wrong, since we obtain incorrect informations. So, prior separating rows, we discard the ones containing country exclusions in shipping lists. We will lose some data (~ 10000 rows), but on the other hand our analysis will be more correct.
 ```{r}
-agora <-
+agora_no_excl <-
   agora %>%
   filter(!str_detect(Origin, "!")) %>%
   filter(!str_detect(Destination, "!"))
 ```
 We can now duplicate rows depending on the countries in the two columns
 ```{r}
-agora <-
-  agora %>%
+agora_no_excl <-
+  agora_no_excl %>%
   separate_rows(Origin, sep = ",") %>%
   separate_rows(Destination, sep = ",") %>%
   distinct()
@@ -555,7 +555,7 @@ We managed to clean the `Origin` and `Destination` column and may now start with
 As a first insight, we want to know the major sources and destinations for the market products.
 ```{r}
 top_dest <-
-  agora %>%
+  agora_no_excl %>%
   group_by(Origin) %>%
   summarise(N_items = n()) %>%
   arrange(desc(N_items)) %>%
@@ -565,7 +565,7 @@ top_dest <-
   labs(title = 'Top 30 origin countries', x = 'No. of items on sale', y = 'Country')
 
 top_sources <-
-  agora %>%
+  agora_no_excl %>%
   group_by(Destination) %>%
   summarise(N_items = n()) %>%
   arrange(desc(N_items)) %>%
@@ -581,9 +581,9 @@ With respect to items origin, USA dominates the market and also for shipping des
 We now look for the most used market routes:
 ```{r}
 sales_channel <-
-  agora %>%
+  agora_no_excl %>%
   group_by(Origin, Destination) %>%
-  summarise(`Sales Volume %` = round(n() / nrow(agora) * 100, digits = 4)) %>%
+  summarise(`Sales Volume %` = round(n() / nrow(agora_no_excl) * 100, digits = 4)) %>%
   arrange(desc(`Sales Volume %`))
 sales_channel
 ```
@@ -613,10 +613,55 @@ top_sales_channel %>%
   geom_tile(aes(fill = `Sales Volume %`)) +
   scale_x_discrete(guide = guide_axis(n.dodge = 2))
 ```
-
 *Additional: investigate countries where items DO NOT ship?*
+By analyzing the shipping information, we noted that often some countries are explicitly excluded from shipping destinations. We concentrate our exploration on such countries, by doing exactly the same procedure we just carried on to explore shipping routes. The only difference is that we only retain countries where items are declared to *not* ship to.
+```{r}
+agora_excl <-
+  agora %>%
+  separate_rows(Destination, sep = ",") %>%
+  filter(str_detect(Destination, "!"))
+agora_excl
+```
+Now, for each country, we calculate the percentage of items that *does not ship* to it (percentage is calculated on the total number of listings).
+```{r}
+sales_channel_excl <-
+  agora_excl %>%
+  mutate(Destination = str_sub(Destination, 2)) %>%
+  group_by(Destination) %>%
+  summarise(`Shipping Exclusion %` = round(n() / nrow(agora) * 100, digits = 4)) %>%
+  arrange(desc(`Shipping Exclusion %`))
+sales_channel_excl
+```
+24 countries that happen to be excluded as shipping destination. The first of such is again USA, immediately followed by Australia. The interesting fact is that Australia, which has a sales volume which is much less than USA, has a percentage of exclusion which is almost as high: this means that a certain number of items does not ship to Australia.
+```{r}
+sales_channel_excl %>%
+  ggplot(aes(x = reorder(Destination, -`Shipping Exclusion %`), y = `Shipping Exclusion %`)) +
+  geom_col() +
+  scale_x_discrete(guide = guide_axis(n.dodge = 2)) +
+  labs(title = 'Countries per Shipping Exclusion %', x = 'Country', y = '% items not shipping')
+```
 
 #Conclusions
+Despite the unreliable nature of the dataset, we managed to analyze various facets of the Agora market and to obtain interesting insights.
+A large number of vendors was hosted in the market, but a handful of individuals dominates it in terms of number of items sold. Due to the type of goods offered, it was important
+for a buyer to have at least a basic guarantee regarding the purchases, since it might be difficult to track the shipment or to get a refund. For this reason a vendor's reputation,
+expressed by their rating, presumably played an important role: it indicated that a certain number of transactions was successfully closed with a certain satisfaction degree.
+High ratings were common among market's vendors, meaning that Agora seemed to offer a reliable service. In fact, it was known to be one of the biggest platforms of its category.
+A wide range of items from many different categories was available on the market: however, categorization was rough and not so defined nor reliable. Despite this, we found out that
+drugs and related products were by far the most popular category, especially cannabis and derivates.
+Pricing analysis is not precise due to several factors: the use of Bitcoin as currency, which is very unstable, and the lack of a precise time reference for each entry. The resulting
+currency conversion gives an idea of the item's price in a standard currency, but it has to be taken with a grain of salt. Price seems to fluctuate a lot between items of the same category
+or subcategory, and there are some items with incredibly high prices that are quite suspicious in terms of authenticity.
+Shipping-related information, as it was provided, was useless and not suitable for exploration or analysis.
+A lot of preprocessing, including manual manipulation and the adoption of a custom notation for representing countries and continents, was required in order to clean it.
+However, we were able to get valuable insights by identifiying top countries and the most used shipping routes of the market. Those information could be useful to
+identify high risk zones for what concerns traffic of illegal items. Many items were declared to ship worldwide, but individually USA was by far the country in which most of the transaction 
+took place. Australia, United Kingdom, Canada, Germany and the European Union in general were the other "hot spots" of those years both for outgoing and ingoing traffic.
+We also analyzed countries that happend to be frequently excluded from shipments: Australia turned out to be one of the destinations to which items were often not shipped. This
+might be justified with the fact that Australia was known, at the time but also nowadays, for its strict laws concerning importation of goods.
 
+To stress the concept: this dataset represents just an excerpt on a given time window of a market that, in its whole lifecycle, hosted an uncountable number of items and transactions.
+The given dataset surely is insufficient to give a full characterization of the whole market platform and its behaviors, even without considering its incompleteness and limits.
+However, this does not devalues our analysis: it only means that it is important that the results are treated by taking into account what we just pointed out.
 
 
